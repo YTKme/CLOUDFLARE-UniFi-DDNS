@@ -2,6 +2,9 @@
 # Base #
 ########
 
+# npm
+package-lock.json
+
 # Wrangler Project
 .dev.vars
 .wrangler/
