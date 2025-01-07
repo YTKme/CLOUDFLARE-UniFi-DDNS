@@ -1,3 +1,11 @@
+########
+# Base #
+########
+
+# Wrangler Project
+.dev.vars
+.wrangler/
+
 ###########
 # node.js #
 ###########
