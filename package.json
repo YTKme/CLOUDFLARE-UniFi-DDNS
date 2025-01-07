@@ -1,0 +1,23 @@
+{
+  "name": "cloudflare-unifi-ddns",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy",
+    "dev": "wrangler dev",
+    "start": "wrangler dev",
+    "test": "vitest",
+    "cf-typegen": "wrangler types"
+  },
+  "dependencies": {
+    "@cloudflare/types": "^6.29",
+    "cloudflare": "^3.5"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.5",
+    "@cloudflare/workers-types": "^4.20241230",
+    "typescript": "^5.5",
+    "vitest": "2.1",
+    "wrangler": "^3.60"
+  }
+}
