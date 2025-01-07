@@ -1,13 +1,10 @@
 ---
-# Publish a Python Distribution
-
 name: Deploy CLOUDFLARE Worker
 
-# on:
-#   release:
-#     types: [published]
 on:
-  push
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
