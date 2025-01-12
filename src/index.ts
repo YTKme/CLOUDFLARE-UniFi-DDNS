@@ -146,7 +146,7 @@ const updateAddressRecord = async (
 };
 
 // Default Route
-application.get("/", async (context: Context) => {
+application.get("/update", async (context: Context) => {
   console.debug(`Request: ${JSON.stringify(context.req)}`);
   console.debug(`Environment: ${JSON.stringify(context.env)}`);
 
