@@ -36,7 +36,7 @@ const getClientOption = (request: Request): ClientOptions => {
   const authorization = request.headers.get("Authorization");
 
   if (!authorization) {
-    throw new HttpError(401, "Error: Invalid token.");
+    throw new HttpError(401, "Error: Missing token.");
   }
 
   const [, data] = authorization.split(" ");
@@ -164,10 +164,7 @@ application.get("/", async (context: Context) => {
         error.statusCode as ContentfulStatusCode,
       );
     } else {
-      return context.body(
-        "Internal Server Error",
-        500,
-      );
+      return context.body("Internal Server Error", 500);
     }
   }
 });
