@@ -154,6 +154,9 @@ application.get("/update", async (context: Context) => {
     // Get client option and DNS record
     const clientOption = getClientOption(context.req.raw);
     const addressRecord = getAddressRecord(context.req.raw);
+
+    // Update
+    return await updateAddressRecord(clientOption, addressRecord);
   } catch (error) {
     console.error(`Error: ${error}`);
 
