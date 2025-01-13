@@ -89,8 +89,8 @@ const updateAddressRecord = async (
   clientOption: ClientOptions,
   addressRecord: AddressRecordType,
 ): Promise<Response> => {
-  console.debug(`Client Option: ${JSON.stringify(clientOption)}`);
-  console.debug(`Address Record: ${JSON.stringify(addressRecord)}`);
+  // console.debug(`Client Option: ${JSON.stringify(clientOption)}`);
+  // console.debug(`Address Record: ${JSON.stringify(addressRecord)}`);
 
   const cloudflare = new Cloudflare(clientOption);
 
