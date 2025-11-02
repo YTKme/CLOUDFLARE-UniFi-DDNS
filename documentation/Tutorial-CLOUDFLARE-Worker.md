@@ -2,6 +2,7 @@
 
 ## Table of Content
 
+- [Create Worker](#create-worker)
 - [Reference](#reference)
 
 ## Create Worker
@@ -32,6 +33,13 @@ For setup, select the following options:
 - For *Do you want to use git for version control?*, choose `Yes`.
 - For *Do you want to deploy your application?*, choose `No` (we will be making some changes before deploying).
 
+## Development
+
 ## Reference
 
-- [ Build applications with Cloudflare Workers](https://developers.cloudflare.com/learning-paths/workers/concepts/)
+- [CLOUDFLARE Fundamentals](https://developers.cloudflare.com/fundamentals/)
+    - [CLOUDFLARE Fundamentals, Cloudflare's API, Create API token](https://developers.cloudflare.com/fundamentals/api/get-started/create-token/)
+    - [CLOUDFLARE Fundamentals, Cloudflare's API, Account API tokens](https://developers.cloudflare.com/fundamentals/api/get-started/account-owned-tokens/)
+- [Cloudflare Workers](https://developers.cloudflare.com/workers/)
+    - [Cloudflare Workers, Development & testing](https://developers.cloudflare.com/workers/development-testing/)
+- [Build applications with Cloudflare Workers](https://developers.cloudflare.com/learning-paths/workers/concepts/)
