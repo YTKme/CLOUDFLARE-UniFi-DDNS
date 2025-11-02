@@ -44,15 +44,24 @@ function getClientOption({
   // console.debug("Request:", request);
 
   const authorization = request.headers.get("Authorization");
+  // console.debug("Authorization:", authorization);
 
   if (!authorization) {
-    throw new HttpError(401, "Error: Missing token.");
+    throw new HttpError(401, "Error: Missing (User) API Token.");
   }
 
   const [, data] = authorization.split(" ");
+  const decodedData = atob(data);
+  // console.debug("Decoded Authorization Data:", decodedData);
+  const index = decodedData.indexOf(":");
+
+  if (index === -1 || /[\0-\x1F\x7F]/.test(decodedData)) {
+    throw new HttpError(401, "Error: Invalid token.");
+  }
 
   return {
-    apiToken: data,
+    apiEmail: decodedData.substring(0, index),
+    apiToken: decodedData.substring(index + 1),
   };
 };
 
@@ -92,27 +101,20 @@ function getResourceRecord({
 /**
  * Update Resource Record
  */
-/**
- * Update Resource Record
- */
 async function updateResourceRecord({
   clientOption,
-  accountId,
   resourceRecordList,
 }: {
   clientOption: ClientOptions;
-  accountId: string;
   resourceRecordList: AddressRecordType[];
 }): Promise<{ zone: string; record: RecordResponse[]; }[]> {
-  // console.debug(`Client Option: ${JSON.stringify(clientOption)}`);
-  // console.debug(`Resource Record: ${JSON.stringify(resourceRecord)}`);
+  // console.debug("Client Option:", clientOption);
+  // console.debug("Resource Record List:", resourceRecordList);
 
   const cloudflare = new Cloudflare(clientOption);
 
   // Verify Token
-  const token = await cloudflare.accounts.tokens.verify({
-    account_id: accountId,
-  });
+  const token = await cloudflare.user.tokens.verify();
   // console.debug("Token:", token);
   if (token.status !== "active") {
     throw new HttpError(401, `Error: Invalid token status, ${token.status}`);
@@ -146,7 +148,7 @@ async function updateResourceRecord({
         && !record.name.startsWith("*.")
       );
       // console.debug(`Record List for Zone ${zone.name}:`, recordList);
-      console.debug(`Record List for Zone ${zone.name}:`, recordList.map(r => r.name));
+      // console.debug(`Record List for Zone ${zone.name}:`, recordList.map(r => r.name));
 
       if (recordList.length === 0) {
         throw new HttpError(400, `Error: No record was found for zone ${zone.name}!`);
@@ -169,13 +171,13 @@ async function updateResourceRecord({
               .find(r => r.name === zone.name)
               ?.content || record.content,
           })
-          // .then(updateRecord => {
-          //   console.debug("Update Zone Record:", updateRecord);
-          // })
-          .catch(error => {
-            console.error("Failed to update Zone Record:", error);
-            throw error;
-          });
+            // .then(updateRecord => {
+            //   console.debug("Update Zone Record:", updateRecord);
+            // })
+            .catch(error => {
+              console.error("Failed to update Zone Record:", error);
+              throw error;
+            });
         })
       );
 
@@ -185,13 +187,13 @@ async function updateResourceRecord({
       }
     })
   )
-  // .then((updateRecordList) => {
-  //   console.debug("Update Zone Record:", updateRecordList);
-  // })
-  .catch(error => {
-    console.error("Failed to update Zone:", error);
-    throw error;
-  });
+    // .then((updateRecordList) => {
+    //   console.debug("Update Zone Record:", updateRecordList);
+    // })
+    .catch(error => {
+      console.error("Failed to update Zone:", error);
+      throw error;
+    });
 
   return resultZoneList;
 }
@@ -205,13 +207,6 @@ application.get("/update", async (context: Context) => {
   // console.debug("Request:", context.req);
   // console.debug("Environment:", context.env);
 
-  // Validate Account ID
-  const accountId = context.env.CLOUDFLARE_ACCOUNT_ID;
-  if (!accountId) {
-    console.error("Missing CLOUDFLARE_ACCOUNT_ID environment variable.");
-    return context.body("Internal Server Error", 500);
-  }
-
   try {
     // Get Client Option
     const clientOption = getClientOption({ request: context.req.raw });
@@ -219,19 +214,20 @@ application.get("/update", async (context: Context) => {
 
     // Get Resource Record
     const resourceRecordList = getResourceRecord({ request: context.req.raw });
-    console.debug("Resource Record List:", resourceRecordList);
+    // console.debug("Resource Record List:", resourceRecordList);
 
     // Update
     const result = await updateResourceRecord({
       clientOption: clientOption,
-      accountId: accountId,
       resourceRecordList: resourceRecordList,
     });
 
-    return new Response(JSON.stringify(result), {
-      status: 200,
-      headers: { "Content-Type": "application/json" }
-    });
+    // return new Response(JSON.stringify(result), {
+    //   status: 200,
+    //   headers: { "Content-Type": "application/json" }
+    // });
+
+    return new Response("OK", { status: 200 });
   } catch (error) {
     console.error(`Error: ${error}`);
 
