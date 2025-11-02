@@ -169,13 +169,13 @@ async function updateResourceRecord({
               .find(r => r.name === zone.name)
               ?.content || record.content,
           })
-            // .then(updateRecord => {
-            //   console.debug("Update Zone Record:", updateRecord);
-            // })
-            .catch(error => {
-              console.error("Failed to update Zone Record:", error);
-              throw error;
-            });
+          // .then(updateRecord => {
+          //   console.debug("Update Zone Record:", updateRecord);
+          // })
+          .catch(error => {
+            console.error("Failed to update Zone Record:", error);
+            throw error;
+          });
         })
       );
 
@@ -185,13 +185,13 @@ async function updateResourceRecord({
       }
     })
   )
-    // .then((updateRecordList) => {
-    //   console.debug("Update Zone Record:", updateRecordList);
-    // })
-    .catch(error => {
-      console.error("Failed to update Zone:", error);
-      throw error;
-    });
+  // .then((updateRecordList) => {
+  //   console.debug("Update Zone Record:", updateRecordList);
+  // })
+  .catch(error => {
+    console.error("Failed to update Zone:", error);
+    throw error;
+  });
 
   return resultZoneList;
 }
