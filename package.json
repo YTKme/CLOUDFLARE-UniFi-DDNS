@@ -1,6 +1,6 @@
 {
   "name": "cloudflare-unifi-ddns",
-  "version": "0.6.0",
+  "version": "0.9.0",
   "private": true,
   "scripts": {
     "deploy": "wrangler deploy",
