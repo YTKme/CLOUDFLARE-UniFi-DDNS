@@ -2,14 +2,20 @@
  * CLOUDFLARE UniFi Dynamic Domain Name System (DDNS)
  */
 
-import { ClientOptions, Cloudflare } from "cloudflare";
-import { AAAARecord, ARecord } from "cloudflare/resources/dns/records.mjs";
 import { Context, Hono } from "hono";
 import { ContentfulStatusCode } from "hono/utils/http-status";
 
-type AddressRecordType = AAAARecord | ARecord;
+import { ClientOptions, Cloudflare } from "cloudflare";
+import { AAAARecord, ARecord, RecordResponse } from "cloudflare/resources/dns";
 
-const application = new Hono();
+// Hono CLOUDflare Binding
+type HonoBinding = {
+  CLOUDFLARE_ACCOUNT_ID: string;
+}
+
+type AddressRecordType = ARecord | AAAARecord;
+
+const application = new Hono<{ Bindings: HonoBinding }>();
 
 /**
  * HTTP Error
@@ -21,7 +27,7 @@ class HttpError extends Error {
     message: string,
   ) {
     super(message);
-    this.name = 'HttpError';
+    this.name = "HttpError";
   }
 }
 
@@ -30,8 +36,12 @@ class HttpError extends Error {
  * @param {request} Request
  * @return {ClientOptions}
  */
-const getClientOption = (request: Request): ClientOptions => {
-  console.debug(`Request: ${JSON.stringify(request)}`);
+function getClientOption({
+  request,
+}: {
+  request: Request;
+}): ClientOptions {
+  // console.debug("Request:", request);
 
   const authorization = request.headers.get("Authorization");
 
@@ -40,123 +50,188 @@ const getClientOption = (request: Request): ClientOptions => {
   }
 
   const [, data] = authorization.split(" ");
-  const decodedData = atob(data);
-  const index = decodedData.indexOf(":");
-
-  if (index === -1 || /[\0-\x1F\x7F]/.test(decodedData)) {
-    throw new HttpError(401, "Error: Invalid token.");
-  }
 
   return {
-    apiEmail: decodedData.substring(0, index),
-    apiToken: decodedData.substring(index + 1),
+    apiToken: data,
   };
 };
 
 /**
- * Get Address Record
+ * Get Resource (Domain Name System, DNS) Record
  * @param {request} Request
- * @return {AddressRecordType}
+ * @return {AddressRecordType[]}
  */
-const getAddressRecord = (request: Request): AddressRecordType => {
-  console.debug(`Request: ${JSON.stringify(request)}`);
+function getResourceRecord({
+  request,
+}: {
+  request: Request;
+}): AddressRecordType[] {
+  // console.debug("Request:", request);
 
   const url = new URL(request.url);
   const parameter = url.searchParams;
   const ip = parameter.get("ip");
-  const hostname = parameter.get("hostname");
+  const hostList = parameter.get("host");
 
   if (ip === null || ip === undefined) {
     throw new HttpError(422, "Error: Invalid IP.");
   }
 
-  if (hostname === null || hostname === undefined) {
+  if (hostList === null || hostList === undefined) {
     throw new HttpError(422, "Error: Invalid hostname.");
   }
 
-  return {
-    content: ip,
-    name: hostname,
-    type: ip.includes(":") ? "AAAA" : "A",
+  return hostList.split(",").map(host => ({
+    name: host.trim(),
     ttl: 1,
-  };
-};
+    type: ip.includes(":") ? "AAAA" : "A",
+    content: ip,
+  } as AddressRecordType));
+}
 
 /**
- * Update Address Record
+ * Update Resource Record
  */
-const updateAddressRecord = async (
-  clientOption: ClientOptions,
-  addressRecord: AddressRecordType,
-): Promise<Response> => {
+/**
+ * Update Resource Record
+ */
+async function updateResourceRecord({
+  clientOption,
+  accountId,
+  resourceRecordList,
+}: {
+  clientOption: ClientOptions;
+  accountId: string;
+  resourceRecordList: AddressRecordType[];
+}): Promise<{ zone: string; record: RecordResponse[]; }[]> {
   // console.debug(`Client Option: ${JSON.stringify(clientOption)}`);
-  // console.debug(`Address Record: ${JSON.stringify(addressRecord)}`);
+  // console.debug(`Resource Record: ${JSON.stringify(resourceRecord)}`);
 
   const cloudflare = new Cloudflare(clientOption);
 
-  const tokenStatus = (await cloudflare.user.tokens.verify()).status;
-  if (tokenStatus !== "active") {
-    throw new HttpError(401, `Error: Invalid token status, ${tokenStatus}`);
-  }
-
-  // Get Zone
-  const zoneList = (await cloudflare.zones.list()).result;
-  // Should be only one (1) zone
-  if (zoneList.length > 1) {
-    throw new HttpError(400, "Error: More than one zone was found! The token should scope to one (1) zone.");
-  } else if (zoneList.length === 0) {
-    throw new HttpError(400, "Error: No zone was found! The token should scope to one (1) zone.");
-  }
-
-  const zone = zoneList[0];
-
-  // Get Record
-  const recordList = (
-    await cloudflare.dns.records.list({
-      zone_id: zone.id,
-      name: addressRecord.name,
-      type: addressRecord.type,
-    })
-  ).result;
-  // Should be only one (1) record
-  if (recordList.length > 1) {
-    throw new HttpError(400, "Error: More than one record was found!");
-  } else if (recordList.length === 0) {
-    throw new HttpError(400, "Error: No record was found! Must manually create the record first.");
-  }
-
-  // Get Current Proxy Status
-  const record = recordList[0];
-  // Default to `false` if `proxied` is undefined
-  const proxyStatus = (record as AddressRecordType).proxied ?? false;
-
-  if (!recordList[0].id) {
-    throw new HttpError(400, "Error: Invalid Record ID.");
-  }
-
-  await cloudflare.dns.records.update(recordList[0].id, {
-    content: addressRecord.content,
-    zone_id: zone.id,
-    name: addressRecord.name,
-    type: addressRecord.type,
-    proxied: proxyStatus, // Pass the existing `proxied` status
+  // Verify Token
+  const token = await cloudflare.accounts.tokens.verify({
+    account_id: accountId,
   });
+  // console.debug("Token:", token);
+  if (token.status !== "active") {
+    throw new HttpError(401, `Error: Invalid token status, ${token.status}`);
+  }
 
-  return new Response("OK", { status: 200 });
-};
+  // Parse Resource Record Name
+  const recordNameList = new Set(
+    resourceRecordList.map(record => record.name)
+  );
 
-// Default Route
+  // Get CLOUDFLARE Zone List
+  // Filter by Resource Record Name
+  const zoneList = (await cloudflare.zones.list()).result
+    .filter(zone => recordNameList.has(zone.name));
+  // console.debug("Zone List:", zoneList);
+
+  if (zoneList.length === 0) {
+    throw new HttpError(400, "Error: No zone was found!");
+  }
+
+  const resultZoneList = await Promise.all(
+    // Iterate Zone List
+    zoneList.map(async (zone) => {
+      // Get Zone Record List
+      const recordList = (await cloudflare.dns.records.list({
+        zone_id: zone.id,
+      })).result.filter(record =>
+        // Filter Zone Record
+        (record.type === "A" || record.type === "AAAA")
+        && record.name.endsWith(`.${zone.name}`)
+        && !record.name.startsWith("*.")
+      );
+      // console.debug(`Record List for Zone ${zone.name}:`, recordList);
+      console.debug(`Record List for Zone ${zone.name}:`, recordList.map(r => r.name));
+
+      if (recordList.length === 0) {
+        throw new HttpError(400, `Error: No record was found for zone ${zone.name}!`);
+      }
+
+      // Iterate Zone Record List
+      const resultRecordList = await Promise.all(
+        recordList.map(async (record) => {
+          if (!record.id) {
+            throw new HttpError(400, "Error: Invalid Record ID.");
+          }
+
+          // Update Record
+          return await cloudflare.dns.records.edit(record.id, {
+            zone_id: zone.id,
+            name: record.name,
+            ttl: 1,
+            type: record.type,
+            content: resourceRecordList
+              .find(r => r.name === zone.name)
+              ?.content || record.content,
+          })
+            // .then(updateRecord => {
+            //   console.debug("Update Zone Record:", updateRecord);
+            // })
+            .catch(error => {
+              console.error("Failed to update Zone Record:", error);
+              throw error;
+            });
+        })
+      );
+
+      return {
+        zone: zone.name,
+        record: resultRecordList,
+      }
+    })
+  )
+    // .then((updateRecordList) => {
+    //   console.debug("Update Zone Record:", updateRecordList);
+    // })
+    .catch(error => {
+      console.error("Failed to update Zone:", error);
+      throw error;
+    });
+
+  return resultZoneList;
+}
+
+/**
+ * Update Route
+ *
+ * @param {Context} context - The Hono context object of the request.
+ */
 application.get("/update", async (context: Context) => {
-  console.debug(`Request: ${JSON.stringify(context.req)}`);
-  console.debug(`Environment: ${JSON.stringify(context.env)}`);
+  // console.debug("Request:", context.req);
+  // console.debug("Environment:", context.env);
+
+  // Validate Account ID
+  const accountId = context.env.CLOUDFLARE_ACCOUNT_ID;
+  if (!accountId) {
+    console.error("Missing CLOUDFLARE_ACCOUNT_ID environment variable.");
+    return context.body("Internal Server Error", 500);
+  }
 
   try {
-    // Get client option and DNS record
-    const clientOption = getClientOption(context.req.raw);
-    const addressRecord = getAddressRecord(context.req.raw);
+    // Get Client Option
+    const clientOption = getClientOption({ request: context.req.raw });
+    // console.debug("Client Option:", clientOption);
+
+    // Get Resource Record
+    const resourceRecordList = getResourceRecord({ request: context.req.raw });
+    console.debug("Resource Record List:", resourceRecordList);
 
     // Update
-    return await updateAddressRecord(clientOption, addressRecord);
+    const result = await updateResourceRecord({
+      clientOption: clientOption,
+      accountId: accountId,
+      resourceRecordList: resourceRecordList,
+    });
+
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { "Content-Type": "application/json" }
+    });
   } catch (error) {
     console.error(`Error: ${error}`);
 
